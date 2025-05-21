@@ -1,0 +1,27 @@
+# heatmap.py
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+class HeatmapCell:
+    def __init__(self):
+        pass
+
+    def draw(self, attention, input_sentence, output_sentence, save_path=None):
+        """
+        Draws attention heatmap.
+        :param attention: attention weights (output_len x input_len)
+        :param input_sentence: input character sequence
+        :param output_sentence: output character sequence
+        :param save_path: optional file path to save the figure
+        """
+        fig, ax = plt.subplots(figsize=(len(input_sentence) * 0.5, len(output_sentence) * 0.5))
+        sns.heatmap(attention, xticklabels=input_sentence, yticklabels=output_sentence, cmap='viridis', ax=ax)
+        ax.set_xlabel("Input")
+        ax.set_ylabel("Output")
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path)
+        else:
+            plt.show()
