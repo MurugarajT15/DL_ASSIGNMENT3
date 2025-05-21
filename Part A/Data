@@ -1,0 +1,65 @@
+train_path = "/kaggle/input/tamil-translit/ta.translit.sampled.train.tsv"
+dev_path = "/kaggle/input/tamil-translit/ta.translit.sampled.dev.tsv"
+test_path = "/kaggle/input/tamil-translit/ta.translit.sampled.test.tsv"
+
+train_df = pd.read_csv(train_path, sep="\t", header=None, names=["target","source","freq"])
+dev_df = pd.read_csv(dev_path, sep="\t", header=None, names=["target","source","freq"])
+test_df = pd.read_csv(test_path, sep="\t", header=None, names=["target","source","freq"])
+
+train_df = train_df.dropna(subset=['source','target'])
+dev_df = dev_df.dropna(subset=['source','target'])
+test_df = test_df.dropna(subset=['source','target'])
+
+train_pairs = [(str(s), str(t)) for s,t in zip(train_df.source, train_df.target)]
+dev_pairs = [(str(s), str(t)) for s,t in zip(dev_df.source, dev_df.target)]
+test_pairs = [(str(s), str(t)) for s,t in zip(test_df.source, test_df.target)]
+
+class CharVocab:
+    def __init__(self, sequences):
+        self.char2idx = {'<pad>':0, '<sos>':1, '<eos>':2, '<unk>':3}
+        self.idx2char = ['<pad>', '<sos>', '<eos>', '<unk>']
+        chars = set(''.join(sequences))
+        for ch in sorted(chars):
+            self.char2idx[ch] = len(self.idx2char)
+            self.idx2char.append(ch)
+    def encode(self, text):
+        return [self.char2idx.get(c, self.char2idx['<unk>']) for c in text]
+    def decode(self, indices):
+        result = []
+        for idx in indices:
+            if idx == self.char2idx['<eos>']:
+                break
+            if idx not in (self.char2idx['<pad>'], self.char2idx['<sos>']):
+                result.append(self.idx2char[idx])
+        return ''.join(result)
+    def __len__(self):
+        return len(self.idx2char)
+
+# Create vocabularies
+src_vocab = CharVocab([s for s,_ in train_pairs])
+tgt_vocab = CharVocab([t for _,t in train_pairs])
+
+
+class TransliterationDataset(Dataset):
+    def __init__(self, pairs, src_vocab, tgt_vocab):
+        self.pairs = pairs
+        self.src_vocab = src_vocab
+        self.tgt_vocab = tgt_vocab
+    def __len__(self):
+        return len(self.pairs)
+    def __getitem__(self, idx):
+        src, tgt = self.pairs[idx]
+        src_enc = torch.tensor(self.src_vocab.encode(src), dtype=torch.long)
+        tgt_enc = torch.tensor([self.tgt_vocab.char2idx['<sos>']] + self.tgt_vocab.encode(tgt) + [self.tgt_vocab.char2idx['<eos>']], dtype=torch.long)
+        return src_enc, tgt_enc
+
+def collate_fn(batch):
+    src_seqs, tgt_seqs = zip(*batch)
+    src_padded = pad_sequence(src_seqs, batch_first=True, padding_value=src_vocab.char2idx['<pad>'])
+    tgt_padded = pad_sequence(tgt_seqs, batch_first=True, padding_value=tgt_vocab.char2idx['<pad>'])
+    return src_padded, tgt_padded
+
+# Create datasets
+train_ds = TransliterationDataset(train_pairs, src_vocab, tgt_vocab)
+dev_ds = TransliterationDataset(dev_pairs, src_vocab, tgt_vocab)
+test_ds = TransliterationDataset(test_pairs, src_vocab, tgt_vocab)
