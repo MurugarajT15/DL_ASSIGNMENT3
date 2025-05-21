@@ -1,0 +1,77 @@
+
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class EncoderRNN(nn.Module):
+    def __init__(self, input_size, embed_size, hidden_size, n_layers=1, cell_type="LSTM", dropout=0.0):
+        super(EncoderRNN, self).__init__()
+        self.hidden_size = hidden_size
+        self.n_layers = n_layers
+        self.cell_type = cell_type.upper()
+
+        self.embedding = nn.Embedding(input_size, embed_size)
+        if self.cell_type == "LSTM":
+            self.rnn = nn.LSTM(embed_size, hidden_size, n_layers, dropout=dropout, batch_first=True)
+        elif self.cell_type == "GRU":
+            self.rnn = nn.GRU(embed_size, hidden_size, n_layers, dropout=dropout, batch_first=True)
+        else:
+            self.rnn = nn.RNN(embed_size, hidden_size, n_layers, dropout=dropout, batch_first=True)
+
+    def forward(self, src, src_lengths):
+        embedded = self.embedding(src)
+        packed = nn.utils.rnn.pack_padded_sequence(embedded, src_lengths.cpu(), batch_first=True, enforce_sorted=False)
+        outputs, hidden = self.rnn(packed)
+        outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
+        return outputs, hidden
+
+class Attention(nn.Module):
+    def __init__(self, hidden_size):
+        super(Attention, self).__init__()
+        self.attn = nn.Linear(hidden_size * 2, hidden_size)
+        self.v = nn.Parameter(torch.rand(hidden_size))
+    
+    def forward(self, hidden, encoder_outputs, mask):
+        timestep = encoder_outputs.size(1)
+        hidden = hidden.unsqueeze(1).repeat(1, timestep, 1)
+        energy = torch.tanh(self.attn(torch.cat((hidden, encoder_outputs), 2)))
+        energy = energy.transpose(1, 2)
+        v = self.v.repeat(encoder_outputs.size(0), 1).unsqueeze(1)
+        energy = torch.bmm(v, energy).squeeze(1)
+        energy.masked_fill_(mask == 0, -1e10)
+        return F.softmax(energy, dim=1)
+
+class AttnDecoderRNN(nn.Module):
+    def __init__(self, output_size, embed_size, hidden_size, n_layers=1, cell_type="LSTM", dropout=0.0):
+        super(AttnDecoderRNN, self).__init__()
+        self.hidden_size = hidden_size
+        self.n_layers = n_layers
+        self.cell_type = cell_type.upper()
+
+        self.embedding = nn.Embedding(output_size, embed_size)
+        self.attention = Attention(hidden_size)
+        self.dropout = nn.Dropout(dropout)
+
+        if self.cell_type == "LSTM":
+            self.rnn = nn.LSTM(embed_size + hidden_size, hidden_size, n_layers, dropout=dropout, batch_first=True)
+        elif self.cell_type == "GRU":
+            self.rnn = nn.GRU(embed_size + hidden_size, hidden_size, n_layers, dropout=dropout, batch_first=True)
+        else:
+            self.rnn = nn.RNN(embed_size + hidden_size, hidden_size, n_layers, dropout=dropout, batch_first=True)
+
+        self.out = nn.Linear(hidden_size * 2, output_size)
+
+    def forward(self, input, hidden, encoder_outputs, mask):
+        embedded = self.dropout(self.embedding(input)).unsqueeze(1)
+        if isinstance(hidden, tuple):
+            attn_weights = self.attention(hidden[0][-1], encoder_outputs, mask)
+        else:
+            attn_weights = self.attention(hidden[-1], encoder_outputs, mask)
+
+        attn_applied = torch.bmm(attn_weights.unsqueeze(1), encoder_outputs)
+        rnn_input = torch.cat((embedded, attn_applied), 2)
+        output, hidden = self.rnn(rnn_input, hidden)
+        output = output.squeeze(1)
+        output = self.out(torch.cat((output, attn_applied.squeeze(1)), 1))
+        return output, hidden, attn_weights
