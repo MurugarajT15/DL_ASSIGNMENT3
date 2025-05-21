@@ -1,92 +1,109 @@
-Tamil Transliteration Seq2Seq with Attention
-This repository implements a sequence-to-sequence (Seq2Seq) model with attention for Tamil transliteration tasks. It includes data loading, training, and attention visualization utilities.
+# Tamil Transliteration — Seq2Seq with Attention
 
-Project Structure
-bash
-Copy
-Edit
+This repository contains an end‑to‑end **sequence‑to‑sequence (Seq2Seq)** model with optional Bahdanau attention for **Tamil transliteration** (romanised ⇄ Tamil script). It ships with utilities for data loading, training, and attention‑weight visualisation.
+
+---
+
+##  Project Structure
+```text
 project/
-├── attention.py         # Encoder and Attention Decoder implementations
-├── seq2seq_attn.py      # Seq2SeqAttn model definition (Encoder + Attention Decoder)
-├── data.py              # Dataset loading, vocab creation, collate_fn for batching
-├── heatmap.py           # Utilities for visualizing attention heatmaps
-├── train.py             # Training script with argument parsing and wandb integration
-Requirements
-Python 3.7+
+├── attention.py       # BahdanauAttention & Attention‑Decoder modules
+├── seq2seq_attn.py    # Seq2SeqAttn model (Encoder + Attention Decoder)
+├── data.py            # Dataset & Char‑level vocab, collate_fn
+├── heatmap.py         # Plotting utilities for attention heat‑maps
+├── train.py           # Training script (argparse + W&B logging)
+└── README.md          # You are here
+```
 
-PyTorch
+##  Requirements
+* Python 3.7+
+* [PyTorch](https://pytorch.org/)
+* [Weights & Biases (wandb)](https://wandb.ai/) (optional but recommended)
 
-wandb (Weights & Biases) for experiment tracking
-
-Optional: torchtext or any other text preprocessing tools if customizing vocab
-
-Install dependencies with:
-
-bash
-Copy
-Edit
+Install the minimal dependencies:
+```bash
 pip install torch wandb
-Dataset
-The dataset should be prepared as pairs of source-target transliteration strings.
+```
 
-Place the dataset in a folder and specify the path via --data_path argument.
+---
 
-data.py contains functions to load and preprocess the dataset into training and validation pairs.
+##  Dataset
+*Prepare your data as **source–target** transliteration pairs (tab‑ or comma‑separated).*  
+`data.py` contains helper functions that:
+1. **Load** the train/val/test splits.  
+2. **Build** character‑level vocabularies with specials: `<pad>`, `<sos>`, `<eos>`, `<unk>`.
+3. Return a ready‑to‑use **PyTorch Dataset**.
 
-Usage
-Train the Model
-bash
-Copy
-Edit
-python train.py --data_path ./data \
-                --embed_size 256 \
-                --hidden_size 256 \
-                --num_layers 3 \
-                --dropout 0.3 \
-                --cell_type LSTM \
-                --batch_size 32 \
-                --lr 0.001 \
-                --epochs 10
-Arguments
-Argument	Description	Default
---data_path	Path to dataset folder	.
---embed_size	Embedding dimension size	256
---hidden_size	Hidden state size of RNN/LSTM/GRU	256
---num_layers	Number of RNN layers	3
---dropout	Dropout probability	0.3
---cell_type	Type of RNN cell: RNN, LSTM, or GRU	LSTM
---batch_size	Batch size	32
---lr	Learning rate	0.001
---epochs	Number of training epochs	10
+Pass the dataset folder to the scripts via `--data_path`.
 
-Features
-Custom Vocabulary: Builds vocabularies from dataset characters with special tokens (<pad>, <sos>, <eos>, <unk>).
+---
 
-Seq2Seq with Attention: Implements encoder-decoder with attention mechanism for improved transliteration accuracy.
+##  Training
+```bash
+python train.py \
+  --data_path ./data \
+  --embed_size 256 \
+  --hidden_size 256 \
+  --num_layers 3 \
+  --dropout 0.3 \
+  --cell_type LSTM \
+  --batch_size 32 \
+  --lr 0.001 \
+  --epochs 10 \
+  --attention \
+  --wandb
+```
 
-DataLoader with Padding: Handles variable-length sequences with custom collate function and padding.
+###  Hyper‑parameters
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--data_path` | Path to the dataset folder | `./data` |
+| `--embed_size` | Embedding dimension for source & target | `256` |
+| `--hidden_size` | Hidden state size in (bi‑)RNN layers | `256` |
+| `--num_layers` | # of layers in encoder **and** decoder | `3` |
+| `--dropout` | Dropout probability | `0.3` |
+| `--cell_type` | RNN variant: `RNN`, `LSTM`, `GRU` | `LSTM` |
+| `--batch_size` | Mini‑batch size | `32` |
+| `--lr` | Learning rate (Adam) | `1e‑3` |
+| `--epochs` | Training epochs | `10` |
+| `--attention` | Enable Bahdanau attention | *(flag)* |
+| `--wandb` | Log metrics to W&B | *(flag)* |
 
-Training with wandb: Logs training loss and hyperparameters for easy experiment tracking.
+> **Checkpoint:** The best model (lowest val loss) is saved as `best_model.pt`.
 
-Attention Heatmaps: Utilities available for visualizing attention weights during inference (heatmap.py).
+---
 
-How it works
-The script loads train/dev data pairs.
+##  Attention Visualisation
+`heatmap.py` lets you inspect where the model attends when generating each Tamil character. Example:
+```python
+from heatmap import plot_attention
+plot_attention(src_sentence, predicted, attn_weights)
+```
 
-Vocabularies for source and target are constructed from the training data.
+---
 
-DataLoader batches are padded and collated dynamically.
+##  Features
+* **Custom Char‑Vocab** with `<pad>/<sos>/<eos>/<unk>` tokens.
+* **Seq2Seq + Attention**: encoder–decoder with additive (Bahdanau) attention.
+* **Dynamic Batching**: custom `collate_fn` pads variable‑length sequences.
+* **W&B Integration**: automatic hyper‑parameter & metric logging.
+* **Attention Heat‑maps** for interpretability.
 
-The Seq2SeqAttn model is initialized and trained using cross-entropy loss ignoring padding.
+---
 
-Training progress and loss are logged to Weights & Biases.
+##  How It Works
+1. **Load data** → build vocab → create `DataLoader` (with padding).
+2. **Initialise** `Seq2SeqAttn` (encoder + decoder (+ attention)).
+3. **Train** with cross‑entropy (ignoring `<pad>`). Teacher‑forcing ratio is configurable.
+4. **Log** loss & samples to W&B; save best checkpoint.
 
-Next steps
-Implement evaluation and inference scripts.
+---
 
-Add beam search decoding for better predictions.
+##  Next Steps
+-  Implement **evaluation & inference** scripts.
+-  Add **beam‑search decoding** for higher accuracy.
+-  Leverage **pre‑trained embeddings** (if available).
+-  Extend support to additional datasets & language pairs.
 
-Use pretrained embeddings if applicable.
-
-Add support for more datasets and language pairs.
+---
 
