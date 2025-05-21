@@ -47,7 +47,10 @@ Run training with desired hyperparameters:
 - Use `--attention` to enable Bahdanau attention.
 - Use `--wandb` to log metrics to [Weights & Biases](https://wandb.ai/).
 
-##  Evaluation
+
+
+
+## Evaluation
 
 Evaluate the trained model:
 
@@ -65,7 +68,6 @@ python evaluate.py \
 ```
 
 This will print word-level test accuracy.
-
 ##  Features
 - Configurable encoder-decoder layers and hidden dimensions
 - RNN/GRU/LSTM support
