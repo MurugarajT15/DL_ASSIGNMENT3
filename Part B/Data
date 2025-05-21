@@ -1,0 +1,57 @@
+# data.py
+
+import pandas as pd
+from pathlib import Path
+
+def read_pairs(path):
+    """
+    Reads tab-separated source-target pairs.
+    """
+    df = pd.read_csv(path, sep="\t", header=None, names=["target", "source", "freq"])
+    df = df.dropna(subset=["source", "target"])
+    return [(s, t) for t, s in zip(df.target.astype(str), df.source.astype(str))]
+
+def load_datasets(data_dir):
+    """
+    Load train, dev, and test datasets.
+    """
+    data_dir = Path(data_dir)
+    train_pairs = read_pairs(data_dir / "ta.translit.sampled.train.tsv")
+    dev_pairs = read_pairs(data_dir / "ta.translit.sampled.dev.tsv")
+    test_pairs = read_pairs(data_dir / "ta.translit.sampled.test.tsv")
+    return train_pairs, dev_pairs, test_pairs
+class CharVocab:
+    def __init__(self, seqs):
+        self.char2idx = {'<pad>':0,'<sos>':1,'<eos>':2,'<unk>':3}
+        self.idx2char = ['<pad>','<sos>','<eos>','<unk>']
+        for ch in sorted(set("".join(seqs))):
+            self.char2idx[ch] = len(self.idx2char)
+            self.idx2char.append(ch)
+    def encode(self, txt):   return [self.char2idx.get(c,3) for c in txt]
+    def decode(self, idxs):
+        out=[]; 
+        for i in idxs:
+            if i==2: break
+            if i not in (0,1): out.append(self.idx2char[i])
+        return "".join(out)
+    def __len__(self): return len(self.idx2char)
+
+src_vocab = CharVocab([s for s,_ in train_pairs])
+tgt_vocab = CharVocab([t for _,t in train_pairs])
+
+
+class TransliterationDS(Dataset):
+    def __init__(self, pairs): self.pairs = pairs
+    def __len__(self): return len(self.pairs)
+    def __getitem__(self, idx):
+        s,t = self.pairs[idx]
+        src = torch.tensor(src_vocab.encode(s), dtype=torch.long)
+        tgt = torch.tensor([1]+tgt_vocab.encode(t)+[2], dtype=torch.long)
+        return src, tgt
+def collate_fn(batch):
+    src, tgt = zip(*batch)
+    src = pad_sequence(src, batch_first=True, padding_value=0)
+    tgt = pad_sequence(tgt, batch_first=True, padding_value=0)
+    return src, tgt
+
+train_ds, dev_ds, test_ds = map(TransliterationDS, [train_pairs, dev_pairs, test_pairs])
