@@ -28,22 +28,20 @@ pip install torch wandb
 Run training with desired hyperparameters:
 
 ```bash
-python train.py \
-  --train_path path/to/ta.translit.sampled.train.tsv \
-  --dev_path path/to/ta.translit.sampled.dev.tsv \
-  --test_path path/to/ta.translit.sampled.test.tsv \
-  --embedding_size 64 \
-  --hidden_size 128 \
-  --enc_layers 1 \
-  --dec_layers 1 \
-  --cell_type GRU \
-  --dropout 0.3 \
-  --batch_size 64 \
-  --epochs 15 \
-  --lr 1e-3 \
-  --attention \
-  --wandb
-```
+| Hyperparameter   | Description                             | Values Swept                                 |
+| ---------------- | --------------------------------------- | -------------------------------------------- |
+| `embedding_size` | Size of the embedding vectors           | \[16, 32, 64, 256]                           |
+| `hidden_size`    | Size of hidden layers                   | \[16, 32, 64, 256]                           |
+| `enc_layers`     | Number of encoder layers                | \[1, 2, 3]                                   |
+| `dec_layers`     | Number of decoder layers                | \[1, 2, 3]                                   |
+| `cell_type`      | Type of recurrent cell used             | \['RNN', 'GRU', 'LSTM']                      |
+| `dropout`        | Dropout rate                            | \[0.2, 0.3]                                  |
+| `attention`      | Use Bahdanau attention                  | \[True, False]                               |
+| `batch_size`     | Batch size used in training             | \[32, 64, 128]                               |
+| `epochs`         | Number of training epochs               | 15 (constant)                                |
+| `lr`             | Learning rate                           | \[1e-3, 1e-4]                                |
+| `beam_size`      | Beam size for decoding (if implemented) | \[1, 3, 5] (optional / for future extension) |
+
 
 - Best model will be saved as `best_model.pt`.
 - Use `--attention` to enable Bahdanau attention.
